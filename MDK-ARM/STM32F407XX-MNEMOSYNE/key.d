@@ -1,4 +1,4 @@
-stm32f407xx-mnemosyne/key.o: ..\Key\key.c ..\Key\key.h ..\Core\Inc\main.h \
+stm32f407xx-mnemosyne/key.o: ..\BSP\key.c ..\BSP\key.h ..\Core\Inc\main.h \
   ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal.h \
   ..\Core\Inc\stm32f4xx_hal_conf.h \
   ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_rcc.h \

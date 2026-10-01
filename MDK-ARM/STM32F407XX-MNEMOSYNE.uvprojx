@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Audio;../Key;../Led;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../FATFS/Target;../FATFS/App;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/Third_Party/FatFs/src;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../App;../BSP;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../FATFS/Target;../FATFS/App;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/Third_Party/FatFs/src;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -545,22 +545,27 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Key</GroupName>
+          <GroupName>App</GroupName>
           <Files>
             <File>
-              <FileName>key.c</FileName>
+              <FileName>app_main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../Key/key.c</FilePath>
+              <FilePath>../App/app_main.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>Audio</GroupName>
+          <GroupName>BSP</GroupName>
           <Files>
+            <File>
+              <FileName>key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../BSP/key.c</FilePath>
+            </File>
             <File>
               <FileName>audio_recorder.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../Audio/audio_recorder.c</FilePath>
+              <FilePath>../BSP/audio_recorder.c</FilePath>
             </File>
           </Files>
         </Group>
