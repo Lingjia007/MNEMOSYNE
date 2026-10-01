@@ -35,6 +35,7 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 #define REC_DIR "0:/AUDIO_REC"                        /* SD 卡上的录音目录 */
 #define REC_MAX_FILES 9999U                           /* REC0001.WAV ~ REC9999.WAV */
 #define REC_PREALLOC_BYTES (32U * 1024U * 1024U)      /* 录音开始时预分配的文件空间：约 17.5min @32KB/s */
+#define REC_GAIN_SHIFT 1U                             /* 软件增益（左移位数）：0=原声, 1=2倍, 2=4倍；放大后饱和截断防溢出 */
 
 /* ---- 模块状态 ------------------------------------------------------------ */
 static uint32_t s_dma_buf[REC_DMA_BUF_WORDS]; /* DMA 循环缓冲（DMA/CPU 共享） */
@@ -101,12 +102,18 @@ static void Rec_DmaHalfDone(uint8_t half)
          * DMA 字读 16 位 DR 为零扩展，样本 = 每帧首词的低半字 */
         int16_t sample = (int16_t)(src[4U * i] & 0xFFFFU);
 
-        /* 峰值统计：判断音量偏低的真实幅度（INMP441 灵敏度 -26dBFS@94dB SPL） */
+        /* 峰值统计：判断音量偏低的真实幅度（INMP441 灵敏度 -26dBFS@94dB SPL），
+         * 统计的是增益前的原始幅度 */
         uint32_t mag = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
         if (mag > s_peak)
         {
             s_peak = mag;
         }
+
+#if REC_GAIN_SHIFT > 0
+        /* 软件增益：int32 乘 2^n 后 __SSAT 饱和回 16bit，防溢出翻转（削顶不失真） */
+        sample = (int16_t)__SSAT((int32_t)sample * (1 << REC_GAIN_SHIFT), 16);
+#endif
 
         if (s_ring_count < REC_RING_SAMPLES)
         {
@@ -301,7 +308,8 @@ FRESULT AudioRec_Start(void)
     }
 
     s_state = AUDIO_REC_RECORDING;
-    printf("REC start: %s\r\n", s_path);
+    printf("REC start: %s (gain x%lu)\r\n", s_path,
+           (unsigned long)(1UL << REC_GAIN_SHIFT));
     return FR_OK;
 }
 

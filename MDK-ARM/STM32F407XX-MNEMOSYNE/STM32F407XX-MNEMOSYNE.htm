@@ -3,7 +3,7 @@
 <title>Static Call Graph - [STM32F407XX-MNEMOSYNE\STM32F407XX-MNEMOSYNE.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image STM32F407XX-MNEMOSYNE\STM32F407XX-MNEMOSYNE.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Thu Oct  1 15:27:08 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Thu Oct  1 15:56:34 2026
 <BR><P>
 <H3>Maximum Stack Usage =        720 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -924,7 +924,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[99]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[c5]"></a>AudioRec_Start</STRONG> (Thumb, 536 bytes, Stack size 360 bytes, audio_recorder.o(.text.AudioRec_Start))
+<P><STRONG><a name="[c5]"></a>AudioRec_Start</STRONG> (Thumb, 544 bytes, Stack size 360 bytes, audio_recorder.o(.text.AudioRec_Start))
 <BR><BR>[Stack]<UL><LI>Max Depth = 720 + Unknown Stack Size
 <LI>Call Chain = AudioRec_Start &rArr; f_mkdir &rArr; dir_register &rArr; dir_next &rArr; create_chain &rArr; put_fat &rArr; move_window &rArr; disk_write
 </UL>
@@ -1266,14 +1266,14 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;AudioRec_Start
 </UL>
 
-<P><STRONG><a name="[171]"></a>HAL_I2S_RxCpltCallback</STRONG> (Thumb, 306 bytes, Stack size 20 bytes, audio_recorder.o(.text.HAL_I2S_RxCpltCallback))
+<P><STRONG><a name="[171]"></a>HAL_I2S_RxCpltCallback</STRONG> (Thumb, 336 bytes, Stack size 20 bytes, audio_recorder.o(.text.HAL_I2S_RxCpltCallback))
 <BR><BR>[Stack]<UL><LI>Max Depth = 20<LI>Call Chain = HAL_I2S_RxCpltCallback
 </UL>
 <BR>[Called By]<UL><LI><a href="#[63]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_DMARxCplt
 <LI><a href="#[60]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_IRQHandler
 </UL>
 
-<P><STRONG><a name="[172]"></a>HAL_I2S_RxHalfCpltCallback</STRONG> (Thumb, 304 bytes, Stack size 20 bytes, audio_recorder.o(.text.HAL_I2S_RxHalfCpltCallback))
+<P><STRONG><a name="[172]"></a>HAL_I2S_RxHalfCpltCallback</STRONG> (Thumb, 326 bytes, Stack size 20 bytes, audio_recorder.o(.text.HAL_I2S_RxHalfCpltCallback))
 <BR><BR>[Stack]<UL><LI>Max Depth = 20<LI>Call Chain = HAL_I2S_RxHalfCpltCallback
 </UL>
 <BR>[Called By]<UL><LI><a href="#[62]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_DMARxHalfCplt
@@ -2094,10 +2094,10 @@ Global Symbols
 <P><STRONG><a name="[17a]"></a>SCSI_ProcessCmd</STRONG> (Thumb, 2548 bytes, Stack size 40 bytes, usbd_msc_scsi.o(.text.SCSI_ProcessCmd))
 <BR><BR>[Stack]<UL><LI>Max Depth = 124<LI>Call Chain = SCSI_ProcessCmd &rArr; SCSI_ProcessWrite &rArr; MSC_BOT_SendCSW &rArr; USBD_LL_PrepareReceive &rArr; HAL_PCD_EP_Receive &rArr; USB_EPStartXfer
 </UL>
-<BR>[Calls]<UL><LI><a href="#[192]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_CheckAddressRange
-<LI><a href="#[191]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessWrite
+<BR>[Calls]<UL><LI><a href="#[191]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessWrite
 <LI><a href="#[190]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessRead
 <LI><a href="#[178]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
+<LI><a href="#[192]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_CheckAddressRange
 </UL>
 <BR>[Called By]<UL><LI><a href="#[17b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataOut
 <LI><a href="#[179]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataIn
