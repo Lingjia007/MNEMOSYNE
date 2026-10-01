@@ -22,14 +22,17 @@
 #include "fatfs.h"
 #include "i2s.h"
 #include "rtc.h"
-#include "sdio.h"
 #include "usart.h"
 #include "gpio.h"
-#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include "sdio.h"
+#include "usb_device.h"
+#include "key.h"
+#include "led.h"
+#include "audio_recorder.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -150,7 +153,32 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    /* 按键处理在 EXTI0 中断中完成（见 Key/key.c 的 HAL_GPIO_EXTI_Callback） */
+    /* 按键事件（EXTI 中断置标志，见 Key/key.c）：
+     * 一次按键 = 开始录音（LED 亮）；再次按键 = 停止录音（LED 灭） */
+    if (Key_PopEvent())
+    {
+      if (AudioRec_GetState() == AUDIO_REC_IDLE)
+      {
+        if (AudioRec_Start() == FR_OK)
+        {
+          LED_ON();
+        }
+      }
+      else
+      {
+        (void)AudioRec_Stop();
+        LED_OFF();
+      }
+    }
+
+    /* 把采集环形缓冲中的数据搬到 SD 卡 */
+    AudioRec_Process();
+
+    /* 写卡失败等异常导致录音中途结束：同步熄灭 LED */
+    if ((AudioRec_GetState() == AUDIO_REC_IDLE) && LED_IS_ON())
+    {
+      LED_OFF();
+    }
   }
   /* USER CODE END 3 */
 }

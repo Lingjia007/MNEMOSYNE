@@ -8,6 +8,7 @@ CompileFlags:
     - '-Ic:/Users/31254/AppData/Local/Arm/Packs/ARM/CMSIS/6.1.0/CMSIS/Core/Include'
     - '-Ic:/Users/31254/AppData/Local/Arm/Packs/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include'
     - '-Id:/edgedownload/STM32WB55XX-HERA/STM32F407XX-MNEMOSYNE/Core/Inc'
+    - '-Id:/edgedownload/STM32WB55XX-HERA/STM32F407XX-MNEMOSYNE/Audio'
     - '-Id:/edgedownload/STM32WB55XX-HERA/STM32F407XX-MNEMOSYNE/Key'
     - '-Id:/edgedownload/STM32WB55XX-HERA/STM32F407XX-MNEMOSYNE/Led'
     - '-Id:/edgedownload/STM32WB55XX-HERA/STM32F407XX-MNEMOSYNE/Drivers/STM32F4xx_HAL_Driver/Inc'

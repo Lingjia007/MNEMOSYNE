@@ -1,0 +1,406 @@
+/**
+ ******************************************************************************
+ * @file    audio_recorder.c
+ * @brief   按键录音实现（采集部分参考 STM32WB55XX-HERA 的 Audio/App 实现）
+ *
+ * 数据流（16kHz 单声道 int16）：
+ *   I2S2 DMA 循环模式（半/全传输中断，5ms 半块）
+ *     -> 中断里把左槽样本转成 int16 推入环形缓冲
+ *     -> 主循环 AudioRec_Process() 搬写到 SD 卡 WAV 文件
+ *
+ * I2S2 硬件配置（CubeMX 生成，见 Core/Src/i2s.c）：
+ *   主接收 / Philips 标准 / 32bit 数据格式 / 16kHz / DMA1_Stream3 循环字传输。
+ *   32bit 槽需两次 16 位 DR 读出；DMA 按 32 位字读 DR 为零扩展（高半字恒 0），
+ *   故每槽占 2 词、每帧占 4 词：[左高16][左低16][右高16][右低16]。
+ *   INMP441 L/R=GND 输出在左槽，int16 样本 = 每帧首词的低半字。
+ ******************************************************************************
+ */
+#include "audio_recorder.h"
+#include "i2s.h"
+#include <string.h>
+#include <stdio.h>
+#include "usb_device.h"
+#include "usbd_core.h"
+
+/* usb_device.h 未导出句柄，这里自行声明（定义在 usb_device.c） */
+extern USBD_HandleTypeDef hUsbDeviceFS;
+
+/* ---- 可调参数 ------------------------------------------------------------ */
+#define REC_SAMPLE_RATE 16000U /* 采样率 Hz（与 I2S2 配置一致） */
+#define REC_DMA_BUF_WORDS 640U /* DMA 双缓冲总字数（32bit）：160 帧，半缓冲 80 帧 = 5ms */
+#define REC_DMA_HALF_WORDS (REC_DMA_BUF_WORDS / 2U)
+#define REC_DMA_HALF_FRAMES (REC_DMA_HALF_WORDS / 4U) /* 每帧 4 词（见 Rec_DmaHalfDone），半缓冲 80 帧 */
+#define REC_RING_SAMPLES 16384U                       /* 环形缓冲样本数：1.024s @16kHz，吸收 SD 写卡顿 */
+#define REC_CHUNK 512U                                /* 单次 f_write 最大样本数（1KB） */
+#define REC_DIR "0:/AUDIO_REC"                        /* SD 卡上的录音目录 */
+#define REC_MAX_FILES 9999U                           /* REC0001.WAV ~ REC9999.WAV */
+#define REC_PREALLOC_BYTES (32U * 1024U * 1024U)      /* 录音开始时预分配的文件空间：约 17.5min @32KB/s */
+
+/* ---- 模块状态 ------------------------------------------------------------ */
+static uint32_t s_dma_buf[REC_DMA_BUF_WORDS]; /* DMA 循环缓冲（DMA/CPU 共享） */
+static int16_t s_mono[REC_DMA_HALF_FRAMES];   /* 半缓冲转换结果（ISR 访问） */
+static int16_t s_file_buf[REC_CHUNK];         /* 写文件线性缓冲（主循环访问） */
+
+/* 环形缓冲：生产者 = I2S DMA 中断，消费者 = 主循环
+ * count 为 32 位对齐变量，Cortex-M4 上读写原子 */
+static int16_t s_ring[REC_RING_SAMPLES];
+static volatile uint32_t s_ring_wpos;  /* ISR 写位置 */
+static volatile uint32_t s_ring_count; /* 可读样本数 */
+static uint32_t s_ring_rpos;           /* 主循环读位置（仅主循环访问） */
+
+static FIL s_rec_file;           /* 录音文件对象 */
+static char s_path[48];          /* 当前文件路径 */
+static uint32_t s_file_bytes;    /* 已写入的 PCM 数据字节数（不含 44B 头） */
+static uint32_t s_drop_count;    /* 环满丢弃的样本数 */
+static uint32_t s_i2s_err_count; /* I2S 硬件错误（溢出等）次数 */
+static uint32_t s_peak;          /* 录音期间样本峰值 |sample|（诊断用） */
+static AudioRecState s_state = AUDIO_REC_IDLE;
+
+/* ---- 内部工具 ------------------------------------------------------------ */
+static void Rec_Put16(uint8_t *p, uint16_t v)
+{
+    p[0] = (uint8_t)(v & 0xFFU);
+    p[1] = (uint8_t)(v >> 8U);
+}
+
+static void Rec_Put32(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t)(v & 0xFFU);
+    p[1] = (uint8_t)((v >> 8U) & 0xFFU);
+    p[2] = (uint8_t)((v >> 16U) & 0xFFU);
+    p[3] = (uint8_t)(v >> 24U);
+}
+
+/* 构造 44 字节标准 PCM WAV 头 */
+static void Rec_BuildWavHeader(uint8_t hdr[44], uint32_t data_size)
+{
+    memcpy(&hdr[0], "RIFF", 4);
+    Rec_Put32(&hdr[4], 36U + data_size); /* 文件总长 - 8 */
+    memcpy(&hdr[8], "WAVE", 4);
+    memcpy(&hdr[12], "fmt ", 4);
+    Rec_Put32(&hdr[16], 16U); /* fmt 块长度 */
+    Rec_Put16(&hdr[20], 1U);  /* PCM */
+    Rec_Put16(&hdr[22], 1U);  /* 单声道 */
+    Rec_Put32(&hdr[24], REC_SAMPLE_RATE);
+    Rec_Put32(&hdr[28], REC_SAMPLE_RATE * 2U); /* 字节率 = 采样率 * 声道数 * 2 */
+    Rec_Put16(&hdr[32], 2U);                   /* 块对齐 */
+    Rec_Put16(&hdr[34], 16U);                  /* 位深 */
+    memcpy(&hdr[36], "data", 4);
+    Rec_Put32(&hdr[40], data_size);
+}
+
+/* ---- 生产者：DMA 半/全传输中断 ------------------------------------------- */
+/* half: 0 = 前半缓冲，1 = 后半缓冲 */
+static void Rec_DmaHalfDone(uint8_t half)
+{
+    const uint32_t *src = &s_dma_buf[(uint32_t)half * REC_DMA_HALF_WORDS];
+
+    for (uint32_t i = 0U; i < REC_DMA_HALF_FRAMES; i++)
+    {
+        /* 每帧 4 词：[左槽高16][左槽低16][右槽高16][右槽低16]；
+         * DMA 字读 16 位 DR 为零扩展，样本 = 每帧首词的低半字 */
+        int16_t sample = (int16_t)(src[4U * i] & 0xFFFFU);
+
+        /* 峰值统计：判断音量偏低的真实幅度（INMP441 灵敏度 -26dBFS@94dB SPL） */
+        uint32_t mag = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
+        if (mag > s_peak)
+        {
+            s_peak = mag;
+        }
+
+        if (s_ring_count < REC_RING_SAMPLES)
+        {
+            s_ring[s_ring_wpos] = sample;
+            s_ring_wpos = (s_ring_wpos + 1U) % REC_RING_SAMPLES;
+            s_ring_count++;
+        }
+        else
+        {
+            s_drop_count++; /* 环满：SD 卡写入太慢，丢弃本样本 */
+        }
+    }
+}
+
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+    if (hi2s->Instance == SPI2)
+    {
+        Rec_DmaHalfDone(0U);
+    }
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+    if (hi2s->Instance == SPI2)
+    {
+        Rec_DmaHalfDone(1U);
+    }
+}
+
+void HAL_I2S_ErrorCallback(I2S_HandleTypeDef *hi2s)
+{
+    /* 接收溢出（OVR）等：DMA 仍在循环运行，仅丢失个别样本，记录计数即可 */
+    if (hi2s->Instance == SPI2)
+    {
+        s_i2s_err_count++;
+    }
+}
+
+/* ---- 消费者：主循环把环形缓冲写入文件 ------------------------------------- */
+/* 把环形缓冲中当前所有样本写入文件（处理回绕），失败返回错误码 */
+static FRESULT Rec_WriteRingToFile(void)
+{
+    FRESULT res = FR_OK;
+
+    while (s_ring_count > 0U)
+    {
+        uint32_t n = (s_ring_count > REC_CHUNK) ? REC_CHUNK : s_ring_count;
+
+        /* 环形缓冲可能回绕，分两段拷贝到线性缓冲 */
+        uint32_t first = REC_RING_SAMPLES - s_ring_rpos;
+        if (first > n)
+        {
+            first = n;
+        }
+        memcpy(s_file_buf, &s_ring[s_ring_rpos], first * sizeof(int16_t));
+        if (first < n)
+        {
+            memcpy(&s_file_buf[first], &s_ring[0], (n - first) * sizeof(int16_t));
+        }
+
+        UINT bw = 0U;
+        res = f_write(&s_rec_file, s_file_buf, (UINT)(n * sizeof(int16_t)), &bw);
+        s_file_bytes += bw;
+        if ((res != FR_OK) || (bw != (UINT)(n * sizeof(int16_t))))
+        {
+            return (res != FR_OK) ? res : FR_DISK_ERR;
+        }
+
+        s_ring_rpos = (s_ring_rpos + n) % REC_RING_SAMPLES;
+        s_ring_count -= n;
+    }
+
+    return res;
+}
+
+/* ---- 对外接口 ------------------------------------------------------------ */
+void AudioRec_Init(void)
+{
+    s_state = AUDIO_REC_IDLE;
+    s_ring_wpos = 0U;
+    s_ring_rpos = 0U;
+    s_ring_count = 0U;
+    s_file_bytes = 0U;
+    s_drop_count = 0U;
+    s_i2s_err_count = 0U;
+    s_peak = 0U;
+}
+
+FRESULT AudioRec_Start(void)
+{
+    if (s_state == AUDIO_REC_RECORDING)
+    {
+        return FR_OK; /* 已在录音，幂等返回 */
+    }
+
+    /* 0. 录音前先断开 USB MSC：主机（Windows）会后台读写 U 盘，与 FatFS 在
+     *    SDIO 上并发冲突——卡忙时 disk_status 报 STA_NOINIT，FatFS 卷被作废，
+     *    f_write 全部返回 FR_INVALID_OBJECT(9)。断开后主机侧表现为 U 盘拔出。 */
+    if (hUsbDeviceFS.pData != NULL)
+    {
+        (void)USBD_Stop(&hUsbDeviceFS);
+        (void)USBD_DeInit(&hUsbDeviceFS);
+        printf("USB MSC paused for recording\r\n");
+    }
+
+    /* 1. 创建录音目录（已存在则忽略） */
+    FRESULT res = f_mkdir(REC_DIR);
+    if ((res != FR_OK) && (res != FR_EXIST))
+    {
+        printf("REC mkdir fail: %d\r\n", (int)res);
+        return res;
+    }
+
+    /* 2. 顺序查找空闲文件号 REC0001.WAV ... */
+    FILINFO fno;
+    UINT idx = 1U;
+    do
+    {
+        snprintf(s_path, sizeof(s_path), REC_DIR "/REC%04u.WAV", (unsigned int)idx);
+        res = f_stat(s_path, &fno);
+        idx++;
+    } while ((res == FR_OK) && (idx <= REC_MAX_FILES));
+
+    if (res != FR_NO_FILE)
+    {
+        printf("REC no free file name (%d)\r\n", (int)res);
+        return res;
+    }
+
+    /* 3. 打开文件并写 WAV 头（data 长度先置 0，停止时回填） */
+    res = f_open(&s_rec_file, s_path, FA_CREATE_ALWAYS | FA_WRITE);
+    if (res != FR_OK)
+    {
+        printf("REC open fail: %d\r\n", (int)res);
+        return res;
+    }
+
+    uint8_t hdr[44];
+    Rec_BuildWavHeader(hdr, 0U);
+
+    UINT bw = 0U;
+    res = f_write(&s_rec_file, hdr, sizeof(hdr), &bw);
+    if ((res != FR_OK) || (bw != sizeof(hdr)))
+    {
+        printf("REC header write fail: %d\r\n", (int)res);
+        f_close(&s_rec_file);
+        return (res != FR_OK) ? res : FR_DISK_ERR;
+    }
+
+    /* 3.5 预分配文件空间（参考 STM32F407_Bootloader 的 OTA 写法）：
+     * f_lseek 越过 EOF 会一次性把所需簇全部分配好并写入 FAT 表，此后录音中的
+     * f_write 只写数据区、不再触碰 FAT——运行时簇分配要连续读写 FAT 扇区，
+     * 叠加 SD 卡内部 GC 卡顿可长达数百 ms，环形缓冲被填满后 ISR 只能丢样本，
+     * 听感就是"局部加速"。预分配把这一开销挪到录音开始前完成。
+     * 停止时再 f_truncate 到实际长度，释放未用的预分配簇。 */
+    res = f_lseek(&s_rec_file, REC_PREALLOC_BYTES);
+    if (res == FR_OK)
+    {
+        res = f_truncate(&s_rec_file);
+    }
+    if (res == FR_OK)
+    {
+        res = f_lseek(&s_rec_file, (FSIZE_t)sizeof(hdr));
+    }
+    if (res != FR_OK)
+    {
+        /* 预分配失败（如卡剩余空间不足）不致命：回到数据起点，退化为运行时分配 */
+        printf("REC prealloc fail: %d (continue without)\r\n", (int)res);
+        f_lseek(&s_rec_file, (FSIZE_t)sizeof(hdr));
+    }
+
+    s_file_bytes = 0U;
+    s_drop_count = 0U;
+    s_i2s_err_count = 0U;
+    s_peak = 0U;
+    s_ring_wpos = 0U;
+    s_ring_rpos = 0U;
+    s_ring_count = 0U;
+
+    /* 4. 启动 I2S DMA 循环采集
+     * 注意：HAL_I2S_Receive_DMA 对 24B/32B 格式会把 Size 左移一位再写入 DMA
+     * NDTR（HAL 假定 DMA 为半字传输，见 stm32f4xx_hal_i2s.c）。本工程 I2S2
+     * DMA 配置为 32 位字对齐，NDTR 单位是字——若 Size 按字数传入，实际搬运
+     * 量翻倍，越界 2560B 踩坏紧随其后的 s_file_buf / s_rec_file(FIL) / s_ring，
+     * 导致 f_write 全报 FR_INVALID_OBJECT(9)。故 Size 必须传字数的一半。 */
+    if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t *)s_dma_buf, REC_DMA_BUF_WORDS / 2U) != HAL_OK)
+    {
+        printf("REC I2S DMA start fail\r\n");
+        f_close(&s_rec_file);
+        return FR_DISK_ERR;
+    }
+
+    s_state = AUDIO_REC_RECORDING;
+    printf("REC start: %s\r\n", s_path);
+    return FR_OK;
+}
+
+FRESULT AudioRec_Stop(void)
+{
+    if (s_state != AUDIO_REC_RECORDING)
+    {
+        return FR_OK; /* 未在录音，幂等返回 */
+    }
+
+    /* 先切状态，避免中断/Process 继续往文件写 */
+    s_state = AUDIO_REC_IDLE;
+
+    HAL_I2S_DMAStop(&hi2s2);
+
+    /* 把环形缓冲中剩余数据写完（可能带最后一次写错误） */
+    FRESULT res = Rec_WriteRingToFile();
+    if (res != FR_OK)
+    {
+        printf("REC final write fail: %d\r\n", (int)res);
+    }
+
+    /* 截断到实际长度：f_truncate 以当前 fptr 为新文件大小并释放其后预分配的
+     * 簇；WAV 头中的 data 长度字段本就以 s_file_bytes 为准，二者一致 */
+    if (res == FR_OK)
+    {
+        f_lseek(&s_rec_file, 44U + s_file_bytes);
+        f_truncate(&s_rec_file);
+    }
+
+    /* 回填 WAV 头中的长度字段（offset 4: RIFF 大小；offset 40: data 大小） */
+    if (res == FR_OK)
+    {
+        uint8_t sz[4];
+        UINT bw = 0U;
+
+        Rec_Put32(sz, 36U + s_file_bytes);
+        f_lseek(&s_rec_file, 4U);
+        f_write(&s_rec_file, sz, 4U, &bw);
+
+        Rec_Put32(sz, s_file_bytes);
+        f_lseek(&s_rec_file, 40U);
+        f_write(&s_rec_file, sz, 4U, &bw);
+    }
+
+    FRESULT cres = f_close(&s_rec_file);
+
+    printf("REC stop: %s, %lu bytes, %lu.%lu s",
+           s_path, (unsigned long)s_file_bytes,
+           (unsigned long)(s_file_bytes / 32000U),
+           (unsigned long)((s_file_bytes % 32000U) * 10U / 32000U));
+    if (s_drop_count > 0U)
+    {
+        printf(", drop %lu", (unsigned long)s_drop_count);
+    }
+    if (s_i2s_err_count > 0U)
+    {
+        printf(", i2s err %lu", (unsigned long)s_i2s_err_count);
+    }
+    printf(", peak %lu/32767", (unsigned long)s_peak);
+    printf("\r\n");
+
+    /* 4. 录音结束，恢复 USB MSC（重新枚举，U 盘重新出现在主机上） */
+    if (hUsbDeviceFS.pData != NULL)
+    {
+        MX_USB_DEVICE_Init();
+        printf("USB MSC resumed\r\n");
+    }
+
+    return (res != FR_OK) ? res : cres;
+}
+
+void AudioRec_Process(void)
+{
+    if (s_state != AUDIO_REC_RECORDING)
+    {
+        return;
+    }
+
+    if (s_ring_count == 0U)
+    {
+        return;
+    }
+
+    FRESULT res = Rec_WriteRingToFile();
+    if (res != FR_OK)
+    {
+        /* 写卡失败：中止本次录音（Stop 内部会回收并尽量保存已录数据） */
+        printf("REC write error: %d, abort\r\n", (int)res);
+        (void)AudioRec_Stop();
+    }
+}
+
+AudioRecState AudioRec_GetState(void)
+{
+    return s_state;
+}
+
+const char *AudioRec_GetFilePath(void)
+{
+    return s_path;
+}

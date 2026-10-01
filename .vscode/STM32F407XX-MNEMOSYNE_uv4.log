@@ -11,7 +11,7 @@ Feature(s) : GDB, FlashDL, FlashBP, JFlash
 * JLink Info: InitTarget() start
 * JLink Info: SWD selected. Executing JTAG -> SWD switching sequence.
 * JLink Info: DAP initialized successfully.
-* JLink Info: InitTarget() end - Took 26.4ms
+* JLink Info: InitTarget() end - Took 33.6ms
 * JLink Info: Found SW-DP with ID 0x2BA01477
 * JLink Info: DPIDR: 0x2BA01477
 * JLink Info: CoreSight SoC-400 or earlier
@@ -54,5 +54,5 @@ Erase Done.Programming Done.Verify OK.* JLink Info: Memory map 'before startup c
 * JLink Info: Memory map 'after startup completion point' is active
 Application running ...
 * JLink Info: OnDisconnectTarget() start
-* JLink Info: OnDisconnectTarget() end - Took 2.13ms
-Flash Load finished at 13:30:25
+* JLink Info: OnDisconnectTarget() end - Took 1.98ms
+Flash Load finished at 15:27:19

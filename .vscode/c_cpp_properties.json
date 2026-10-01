@@ -16,6 +16,7 @@
                 "C:/Users/31254/AppData/Local/Arm/Packs/ARM/CMSIS/6.1.0/CMSIS/Core/Include",
                 "C:/Users/31254/AppData/Local/Arm/Packs/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include",
                 "Core/Inc",
+                "Audio",
                 "Key",
                 "Led",
                 "Drivers/STM32F4xx_HAL_Driver/Inc",

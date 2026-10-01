@@ -10,6 +10,7 @@
 "stm32f407xx-mnemosyne\stm32f4xx_it.o"
 "stm32f407xx-mnemosyne\stm32f4xx_hal_msp.o"
 "stm32f407xx-mnemosyne\key.o"
+"stm32f407xx-mnemosyne\audio_recorder.o"
 "stm32f407xx-mnemosyne\stm32f4xx_hal_pcd.o"
 "stm32f407xx-mnemosyne\stm32f4xx_hal_pcd_ex.o"
 "stm32f407xx-mnemosyne\stm32f4xx_ll_usb.o"

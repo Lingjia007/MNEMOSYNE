@@ -29,7 +29,7 @@
 ;   <o> Stack Size (in Bytes) <0x0-0xFFFFFFFF:8>
 ; </h>
 
-Stack_Size		EQU     0x400
+Stack_Size		EQU     0x1200
 
                 AREA    STACK, NOINIT, READWRITE, ALIGN=3
 Stack_Mem       SPACE   Stack_Size
@@ -40,7 +40,9 @@ __initial_sp
 ;   <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
 ; </h>
 
-Heap_Size      EQU     0x200
+; FatFS _USE_LFN=3 需要在堆上分配 512B LFN 缓冲（_MAX_LFN=255），
+; 0x200 恰好不够（含 malloc 元数据开销），加大到 0x600
+Heap_Size      EQU     0x800
 
                 AREA    HEAP, NOINIT, READWRITE, ALIGN=3
 __heap_base

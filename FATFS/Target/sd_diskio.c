@@ -113,6 +113,9 @@ const Diskio_drvTypeDef  SD_Driver =
 /* can be used to modify / undefine following code or add new code */
 #define CUSTOM_SD_READ
 #define CUSTOM_SD_WRITE
+/* SD_status 等待卡就绪的超时（ms）：卡刚写完扇区会短暂处于 prg/rcv 态，
+ * 单次查询会误报 STA_NOINIT 使 FatFS 把卷作废（f_write 报 9），需重试等待 */
+#define SD_STATUS_TIMEOUT 250U
 /* USER CODE END beforeFunctionSection */
 
 /* Private functions ---------------------------------------------------------*/
@@ -173,7 +176,9 @@ DSTATUS SD_initialize(BYTE lun)
   */
 DSTATUS SD_status(BYTE lun)
 {
-  return SD_CheckStatus(lun);
+  /* 带超时重试（与 SD_read/SD_write 入口一致）：FatFS validate_object() 每次文件
+   * 操作都调 disk_status，单次查询在卡短暂忙时误报 STA_NOINIT 会作废整个卷 */
+  return (SD_CheckStatusWithTimeout(SD_STATUS_TIMEOUT) == 0) ? 0 : STA_NOINIT;
 }
 
 /* USER CODE BEGIN beforeReadSection */

@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Key;../Led;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../FATFS/Target;../FATFS/App;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/Third_Party/FatFs/src;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../Audio;../Key;../Led;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../FATFS/Target;../FATFS/App;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/Third_Party/FatFs/src;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -551,6 +551,16 @@
               <FileName>key.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Key/key.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Audio</GroupName>
+          <Files>
+            <File>
+              <FileName>audio_recorder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Audio/audio_recorder.c</FilePath>
             </File>
           </Files>
         </Group>

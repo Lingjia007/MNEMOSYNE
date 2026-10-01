@@ -45,9 +45,11 @@ stm32f407xx-mnemosyne/main.o: ..\Core\Src\main.c ..\Core\Inc\main.h \
   ..\Middlewares\Third_Party\FatFs\src\ff_gen_drv.h \
   ..\Middlewares\Third_Party\FatFs\src\diskio.h \
   ..\FATFS\Target\sd_diskio.h ..\Core\Inc\rtc.h ..\Core\Inc\i2s.h \
-  ..\Core\Inc\sdio.h ..\Core\Inc\usart.h ..\Core\Inc\gpio.h \
+  ..\Core\Inc\usart.h ..\Core\Inc\gpio.h \
+  C:\Keil_v5\ARM\ARMCLANG\include\stdio.h ..\Core\Inc\sdio.h \
   ..\USB_DEVICE\App\usb_device.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
   ..\USB_DEVICE\Target\usbd_conf.h \
-  C:\Keil_v5\ARM\ARMCLANG\include\stdio.h \
-  C:\Keil_v5\ARM\ARMCLANG\include\string.h
+  C:\Keil_v5\ARM\ARMCLANG\include\string.h ..\Key\key.h \
+  C:\Keil_v5\ARM\ARMCLANG\include\stdbool.h ..\Led\led.h \
+  ..\Audio\audio_recorder.h
