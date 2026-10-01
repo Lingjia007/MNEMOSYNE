@@ -62,13 +62,63 @@ void App_Init(void)
     }
 }
 
-void App_Loop(void)
+/* ---- TOGGLE 触发模式：按一下开始，再按一下结束（REC_TRIGGER_MODE = REC_TRIGGER_TOGGLE） ---- */
+static void App_RecToggle(void)
 {
-    /* 按键事件（EXTI 中断置标志，见 BSP/key.c）：
-     * 一次按键 = 开始录音（LED 亮）；再次按键 = 停止录音（LED 灭） */
+    static bool s_pending = false;      /* 延时启动等待中 */
+    static uint32_t s_pending_tick = 0; /* 按键事件确认时刻 */
+
     if (Key_PopEvent())
     {
         if (AudioRec_GetState() == AUDIO_REC_IDLE)
+        {
+            if (s_pending)
+            {
+                s_pending = false; /* 延时等待期间再按一次 = 取消本次启动 */
+            }
+            else if (REC_START_DELAY_MS == 0U)
+            {
+                if (AudioRec_Start() == FR_OK)
+                {
+                    LED_ON();
+                }
+            }
+            else
+            {
+                s_pending = true; /* 进入延时等待 */
+                s_pending_tick = HAL_GetTick();
+            }
+        }
+        else
+        {
+            s_pending = false;
+            (void)AudioRec_Stop(); /* 录音中按键 = 立即停止（不受延时影响） */
+            LED_OFF();
+        }
+    }
+
+    /* 延时到达：正式启动录音 */
+    if (s_pending && (HAL_GetTick() - s_pending_tick >= REC_START_DELAY_MS))
+    {
+        s_pending = false;
+        if ((AudioRec_GetState() == AUDIO_REC_IDLE) && (AudioRec_Start() == FR_OK))
+        {
+            LED_ON();
+        }
+    }
+}
+
+/* ---- HOLD 触发模式：按住期间录音，松开后停止（REC_TRIGGER_MODE = REC_TRIGGER_HOLD） ---- */
+static void App_RecHold(void)
+{
+    static bool s_pending = false;
+    static uint32_t s_pending_tick = 0;
+    static uint32_t s_release_tick = 0; /* 0 = 按住中；非 0 = 首次读到松开的时刻 */
+
+    /* 按下沿事件：启动录音（或进入延时等待） */
+    if (Key_PopEvent() && (AudioRec_GetState() == AUDIO_REC_IDLE))
+    {
+        if (REC_START_DELAY_MS == 0U)
         {
             if (AudioRec_Start() == FR_OK)
             {
@@ -77,10 +127,58 @@ void App_Loop(void)
         }
         else
         {
-            (void)AudioRec_Stop();
-            LED_OFF();
+            s_pending = true;
+            s_pending_tick = HAL_GetTick();
         }
     }
+
+    /* 延时等待：期间松开 = 取消；到时且仍按住 = 启动 */
+    if (s_pending)
+    {
+        if (!Key_IsPressed())
+        {
+            s_pending = false;
+        }
+        else if (HAL_GetTick() - s_pending_tick >= REC_START_DELAY_MS)
+        {
+            s_pending = false;
+            if (AudioRec_Start() == FR_OK)
+            {
+                LED_ON();
+            }
+        }
+    }
+
+    /* 松开检测：连续 KEY_DEBOUNCE_MS 高电平才确认释放（滤释放抖动） */
+    if (AudioRec_GetState() == AUDIO_REC_RECORDING)
+    {
+        if (!Key_IsPressed())
+        {
+            if (s_release_tick == 0U)
+            {
+                s_release_tick = HAL_GetTick();
+            }
+            else if (HAL_GetTick() - s_release_tick >= KEY_DEBOUNCE_MS)
+            {
+                s_release_tick = 0U;
+                (void)AudioRec_Stop();
+                LED_OFF();
+            }
+        }
+        else
+        {
+            s_release_tick = 0U;
+        }
+    }
+}
+
+void App_Loop(void)
+{
+#if REC_TRIGGER_MODE == REC_TRIGGER_HOLD
+    App_RecHold();
+#else
+    App_RecToggle();
+#endif
 
     /* 把采集环形缓冲中的数据搬到 SD 卡 */
     AudioRec_Process();

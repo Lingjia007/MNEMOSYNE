@@ -3,7 +3,7 @@
 <title>Static Call Graph - [STM32F407XX-MNEMOSYNE\STM32F407XX-MNEMOSYNE.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image STM32F407XX-MNEMOSYNE\STM32F407XX-MNEMOSYNE.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Thu Oct  1 17:00:32 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Thu Oct  1 17:56:56 2026
 <BR><P>
 <H3>Maximum Stack Usage =        728 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -925,7 +925,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[99]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[c9]"></a>App_Loop</STRONG> (Thumb, 84 bytes, Stack size 8 bytes, app_main.o(.text.App_Loop))
+<P><STRONG><a name="[c9]"></a>App_Loop</STRONG> (Thumb, 162 bytes, Stack size 8 bytes, app_main.o(.text.App_Loop))
 <BR><BR>[Stack]<UL><LI>Max Depth = 728 + Unknown Stack Size
 <LI>Call Chain = App_Loop &rArr; AudioRec_Start &rArr; f_mkdir &rArr; dir_register &rArr; dir_next &rArr; create_chain &rArr; put_fat &rArr; move_window &rArr; disk_write
 </UL>
@@ -934,6 +934,7 @@ Global Symbols
 <LI><a href="#[cc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;AudioRec_Stop
 <LI><a href="#[cb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;AudioRec_GetState
 <LI><a href="#[ca]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Key_PopEvent
+<LI><a href="#[c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_GetTick
 </UL>
 <BR>[Called By]<UL><LI><a href="#[99]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
@@ -954,7 +955,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[c9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Loop
 </UL>
 
-<P><STRONG><a name="[cd]"></a>AudioRec_Start</STRONG> (Thumb, 544 bytes, Stack size 360 bytes, audio_recorder.o(.text.AudioRec_Start))
+<P><STRONG><a name="[cd]"></a>AudioRec_Start</STRONG> (Thumb, 556 bytes, Stack size 360 bytes, audio_recorder.o(.text.AudioRec_Start))
 <BR><BR>[Stack]<UL><LI>Max Depth = 720 + Unknown Stack Size
 <LI>Call Chain = AudioRec_Start &rArr; f_mkdir &rArr; dir_register &rArr; dir_next &rArr; create_chain &rArr; put_fat &rArr; move_window &rArr; disk_write
 </UL>
@@ -1226,6 +1227,7 @@ Global Symbols
 <LI><a href="#[f1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_RCCEx_PeriphCLKConfig
 <LI><a href="#[143]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_RCC_ClockConfig
 <LI><a href="#[146]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_RCC_OscConfig
+<LI><a href="#[c9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Loop
 <LI><a href="#[c1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Init
 <LI><a href="#[6e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SD_write
 <LI><a href="#[6d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SD_read
@@ -1257,9 +1259,9 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[ed]"></a>HAL_I2S_ErrorCallback</STRONG> (Thumb, 32 bytes, Stack size 0 bytes, audio_recorder.o(.text.HAL_I2S_ErrorCallback))
-<BR><BR>[Called By]<UL><LI><a href="#[61]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2SEx_FullDuplex_IRQHandler
-<LI><a href="#[64]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_DMAError
+<BR><BR>[Called By]<UL><LI><a href="#[64]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_DMAError
 <LI><a href="#[60]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;I2S_IRQHandler
+<LI><a href="#[61]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2SEx_FullDuplex_IRQHandler
 </UL>
 
 <P><STRONG><a name="[19c]"></a>HAL_I2S_IRQHandler</STRONG> (Thumb, 4 bytes, Stack size 0 bytes, stm32f4xx_hal_i2s.o(.text.HAL_I2S_IRQHandler))
@@ -1970,9 +1972,9 @@ Global Symbols
 <P><STRONG><a name="[17f]"></a>MSC_BOT_DataIn</STRONG> (Thumb, 162 bytes, Stack size 16 bytes, usbd_msc_bot.o(.text.MSC_BOT_DataIn))
 <BR><BR>[Stack]<UL><LI>Max Depth = 140<LI>Call Chain = MSC_BOT_DataIn &rArr; SCSI_ProcessCmd &rArr; SCSI_ProcessWrite &rArr; MSC_BOT_SendCSW &rArr; USBD_LL_PrepareReceive &rArr; HAL_PCD_EP_Receive &rArr; USB_EPStartXfer
 </UL>
-<BR>[Calls]<UL><LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
-<LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
+<BR>[Calls]<UL><LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
 <LI><a href="#[17d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_Transmit
+<LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
 </UL>
 <BR>[Called By]<UL><LI><a href="#[7a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_MSC_DataIn
 </UL>
@@ -1980,15 +1982,15 @@ Global Symbols
 <P><STRONG><a name="[181]"></a>MSC_BOT_DataOut</STRONG> (Thumb, 422 bytes, Stack size 24 bytes, usbd_msc_bot.o(.text.MSC_BOT_DataOut))
 <BR><BR>[Stack]<UL><LI>Max Depth = 148<LI>Call Chain = MSC_BOT_DataOut &rArr; SCSI_ProcessCmd &rArr; SCSI_ProcessWrite &rArr; MSC_BOT_SendCSW &rArr; USBD_LL_PrepareReceive &rArr; HAL_PCD_EP_Receive &rArr; USB_EPStartXfer
 </UL>
-<BR>[Calls]<UL><LI><a href="#[183]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_SenseCode
-<LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
-<LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
-<LI><a href="#[17a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_Abort
+<BR>[Calls]<UL><LI><a href="#[17a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_Abort
 <LI><a href="#[184]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendData
 <LI><a href="#[182]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_GetRxDataSize
 <LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
 <LI><a href="#[17d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_Transmit
 <LI><a href="#[17b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_StallEP
+<LI><a href="#[183]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_SenseCode
+<LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
+<LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
 </UL>
 <BR>[Called By]<UL><LI><a href="#[7b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_MSC_DataOut
 </UL>
@@ -2633,9 +2635,7 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[110]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_PCD_EP_Receive
 </UL>
-<BR>[Called By]<UL><LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
-<LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
-<LI><a href="#[181]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataOut
+<BR>[Called By]<UL><LI><a href="#[181]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataOut
 <LI><a href="#[17f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataIn
 <LI><a href="#[17c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_CplClrFeature
 <LI><a href="#[188]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_Reset
@@ -2644,6 +2644,8 @@ Global Symbols
 <LI><a href="#[1a2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_CtlContinueRx
 <LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_DataInStage
 <LI><a href="#[197]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessWrite
+<LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
+<LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
 </UL>
 
 <P><STRONG><a name="[138]"></a>USBD_LL_Reset</STRONG> (Thumb, 98 bytes, Stack size 24 bytes, usbd_core.o(.text.USBD_LL_Reset))
@@ -2730,8 +2732,7 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[115]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_PCD_EP_Transmit
 </UL>
-<BR>[Called By]<UL><LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
-<LI><a href="#[184]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendData
+<BR>[Called By]<UL><LI><a href="#[184]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendData
 <LI><a href="#[181]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataOut
 <LI><a href="#[17f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_DataIn
 <LI><a href="#[17c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_CplClrFeature
@@ -2739,6 +2740,7 @@ Global Symbols
 <LI><a href="#[1a3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_CtlContinueSendData
 <LI><a href="#[1a7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_CtlSendStatus
 <LI><a href="#[196]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessRead
+<LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
 </UL>
 
 <P><STRONG><a name="[7a]"></a>USBD_MSC_DataIn</STRONG> (Thumb, 10 bytes, Stack size 8 bytes, usbd_msc.o(.text.USBD_MSC_DataIn))
@@ -3293,9 +3295,9 @@ Local Symbols
 <P><STRONG><a name="[60]"></a>I2S_IRQHandler</STRONG> (Thumb, 260 bytes, Stack size 24 bytes, stm32f4xx_hal_i2s.o(.text.I2S_IRQHandler))
 <BR><BR>[Stack]<UL><LI>Max Depth = 44<LI>Call Chain = I2S_IRQHandler &rArr; HAL_I2S_RxCpltCallback
 </UL>
-<BR>[Calls]<UL><LI><a href="#[179]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2S_TxCpltCallback
-<LI><a href="#[ed]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2S_ErrorCallback
+<BR>[Calls]<UL><LI><a href="#[ed]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2S_ErrorCallback
 <LI><a href="#[177]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2S_RxCpltCallback
+<LI><a href="#[179]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_I2S_TxCpltCallback
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> stm32f4xx_hal_i2s.o(.text.HAL_I2S_Init)
 </UL>
@@ -3630,8 +3632,8 @@ Local Symbols
 <P><STRONG><a name="[197]"></a>SCSI_ProcessWrite</STRONG> (Thumb, 240 bytes, Stack size 32 bytes, usbd_msc_scsi.o(.text.SCSI_ProcessWrite))
 <BR><BR>[Stack]<UL><LI>Max Depth = 84<LI>Call Chain = SCSI_ProcessWrite &rArr; MSC_BOT_SendCSW &rArr; USBD_LL_PrepareReceive &rArr; HAL_PCD_EP_Receive &rArr; USB_EPStartXfer
 </UL>
-<BR>[Calls]<UL><LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
-<LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
+<BR>[Calls]<UL><LI><a href="#[17e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USBD_LL_PrepareReceive
+<LI><a href="#[185]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MSC_BOT_SendCSW
 </UL>
 <BR>[Called By]<UL><LI><a href="#[180]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SCSI_ProcessCmd
 </UL>

@@ -41,3 +41,12 @@ bool Key_PopEvent(void)
     s_press_event = false;
     return event;
 }
+
+/**
+ * @brief  主循环调用：按键当前是否按住（低电平 = 按下）
+ *         纯电平查询，无消抖；释放检测须由调用方用 KEY_DEBOUNCE_MS 确认
+ */
+bool Key_IsPressed(void)
+{
+    return HAL_GPIO_ReadPin(Key_GPIO_Port, Key_Pin) == GPIO_PIN_RESET;
+}

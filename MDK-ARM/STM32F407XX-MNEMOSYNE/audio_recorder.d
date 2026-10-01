@@ -43,7 +43,9 @@ stm32f407xx-mnemosyne/audio_recorder.o: ..\BSP\audio_recorder.c \
   ..\FATFS\Target\fatfs_platform.h \
   C:\Keil_v5\ARM\ARMCLANG\include\stdlib.h ..\Core\Inc\i2s.h \
   C:\Keil_v5\ARM\ARMCLANG\include\string.h \
-  C:\Keil_v5\ARM\ARMCLANG\include\stdio.h ..\USB_DEVICE\App\usb_device.h \
+  C:\Keil_v5\ARM\ARMCLANG\include\stdio.h \
+  C:\Keil_v5\ARM\ARMCLANG\include\stdbool.h \
+  ..\USB_DEVICE\App\usb_device.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_def.h \
   ..\USB_DEVICE\Target\usbd_conf.h \
   ..\Middlewares\ST\STM32_USB_Device_Library\Core\Inc\usbd_core.h \

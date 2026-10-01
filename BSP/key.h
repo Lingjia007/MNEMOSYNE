@@ -21,6 +21,10 @@ extern "C" {
 /* 中断里置事件标志，主循环轮询取走（录音启停涉及文件操作，须在主循环做） */
 bool Key_PopEvent(void);
 
+/* 按键当前是否按住（低电平 = 按下）：供 HOLD 触发模式的按住/松开检测使用，
+ * 在主循环轮询调用，返回值配合时间去抖 */
+bool Key_IsPressed(void);
+
 #ifdef __cplusplus
 }
 #endif

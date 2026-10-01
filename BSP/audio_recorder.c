@@ -19,6 +19,7 @@
 #include "i2s.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "usb_device.h"
 #include "usbd_core.h"
 
@@ -55,6 +56,8 @@ static uint32_t s_file_bytes;    /* 已写入的 PCM 数据字节数（不含 44
 static uint32_t s_drop_count;    /* 环满丢弃的样本数 */
 static uint32_t s_i2s_err_count; /* I2S 硬件错误（溢出等）次数 */
 static uint32_t s_peak;          /* 录音期间样本峰值 |sample|（诊断用） */
+static bool s_usb_paused = false; /* 录音期间由本模块暂停了 USB MSC（准确追踪暂停状态，
+                                   * hUsbDeviceFS.pData 在 DeInit 后仍非 NULL，不能作判据） */
 static AudioRecState s_state = AUDIO_REC_IDLE;
 
 /* ---- 内部工具 ------------------------------------------------------------ */
@@ -212,11 +215,13 @@ FRESULT AudioRec_Start(void)
 
     /* 0. 录音前先断开 USB MSC：主机（Windows）会后台读写 U 盘，与 FatFS 在
      *    SDIO 上并发冲突——卡忙时 disk_status 报 STA_NOINIT，FatFS 卷被作废，
-     *    f_write 全部返回 FR_INVALID_OBJECT(9)。断开后主机侧表现为 U 盘拔出。 */
-    if (hUsbDeviceFS.pData != NULL)
+     *    f_write 全部返回 FR_INVALID_OBJECT(9)。断开后主机侧表现为 U 盘拔出。
+     *    s_usb_paused 追踪暂停状态：若已处于暂停（如连续录多段未恢复）则跳过。 */
+    if (!s_usb_paused && (hUsbDeviceFS.pData != NULL))
     {
         (void)USBD_Stop(&hUsbDeviceFS);
         (void)USBD_DeInit(&hUsbDeviceFS);
+        s_usb_paused = true;
         printf("USB MSC paused for recording\r\n");
     }
 
@@ -372,14 +377,24 @@ FRESULT AudioRec_Stop(void)
     printf(", peak %lu/32767", (unsigned long)s_peak);
     printf("\r\n");
 
-    /* 4. 录音结束，恢复 USB MSC（重新枚举，U 盘重新出现在主机上） */
-    if (hUsbDeviceFS.pData != NULL)
-    {
-        MX_USB_DEVICE_Init();
-        printf("USB MSC resumed\r\n");
-    }
+    /* 4. 录音结束，按配置决定是否恢复 USB MSC（重新枚举，U 盘重新出现在主机上）；
+     *    REC_USB_RESUME_ON_STOP=0 时保持断开，由外部调用 AudioRec_UsbResume() 恢复 */
+#if REC_USB_RESUME_ON_STOP
+    AudioRec_UsbResume();
+#endif
 
     return (res != FR_OK) ? res : cres;
+}
+
+void AudioRec_UsbResume(void)
+{
+    /* 仅当本模块暂停过 USB 才恢复（s_usb_paused 追踪，幂等安全） */
+    if (s_usb_paused)
+    {
+        MX_USB_DEVICE_Init();
+        s_usb_paused = false;
+        printf("USB MSC resumed\r\n");
+    }
 }
 
 void AudioRec_Process(void)
