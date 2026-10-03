@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 #include "usb_device.h"
 #include "usbd_core.h"
 
@@ -37,6 +38,8 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 #define REC_MAX_FILES 9999U                           /* REC0001.WAV ~ REC9999.WAV */
 #define REC_PREALLOC_BYTES (32U * 1024U * 1024U)      /* 录音开始时预分配的文件空间：约 17.5min @32KB/s */
 #define REC_GAIN_SHIFT 1U                             /* 软件增益（左移位数）：0=原声, 1=2倍, 2=4倍；放大后饱和截断防溢出 */
+#define REC_DC_SHIFT 8U /* 直流跟踪 EMA 移位：时间常数 2^8=256 样本≈16ms@16kHz */
+#define REC_FADE_SAMPLES ((REC_FADE_MS * REC_SAMPLE_RATE) / 1000U) /* 首尾淡入淡出样本数（分块处理，不受 REC_CHUNK 限制） */
 
 /* ---- 模块状态 ------------------------------------------------------------ */
 static uint32_t s_dma_buf[REC_DMA_BUF_WORDS]; /* DMA 循环缓冲（DMA/CPU 共享） */
@@ -56,6 +59,8 @@ static uint32_t s_file_bytes;    /* 已写入的 PCM 数据字节数（不含 44
 static uint32_t s_drop_count;    /* 环满丢弃的样本数 */
 static uint32_t s_i2s_err_count; /* I2S 硬件错误（溢出等）次数 */
 static uint32_t s_peak;          /* 录音期间样本峰值 |sample|（诊断用） */
+static int32_t s_dc_q;           /* 直流分量 EMA 估计（Q8 定点，≈256 倍真实直流） */
+static uint32_t s_rec_start_tick; /* 录音启动时刻：开头 REC_TRIM_HEAD_MS 内的样本据此丢弃 */
 static bool s_usb_paused = false; /* 录音期间由本模块暂停了 USB MSC（准确追踪暂停状态，
                                    * hUsbDeviceFS.pData 在 DeInit 后仍非 NULL，不能作判据） */
 static AudioRecState s_state = AUDIO_REC_IDLE;
@@ -103,10 +108,26 @@ static void Rec_DmaHalfDone(uint8_t half)
     {
         /* 每帧 4 词：[左槽高16][左槽低16][右槽高16][右槽低16]；
          * DMA 字读 16 位 DR 为零扩展，样本 = 每帧首词的低半字 */
-        int16_t sample = (int16_t)(src[4U * i] & 0xFFFFU);
+        int32_t raw = (int16_t)(src[4U * i] & 0xFFFFU);
+
+        /* 直流去除：INMP441 输出带恒定直流偏置，不去除的话 WAV 首样本从 0
+         * 跳到偏置值、末样本从偏置跳回 0——播放时首尾各一声低频"噗"，
+         * 与 trim 时长无关（加长裁剪无效、首次录音也有的原因）。
+         * EMA 跟踪直流并减去；裁剪窗口内样本虽被丢弃但仍参与跟踪，
+         * 窗口结束时估计已收敛，进文件的首样本≈0，首尾阶跃消失 */
+        s_dc_q += raw - (s_dc_q >> REC_DC_SHIFT);
+        int16_t sample = (int16_t)(raw - (s_dc_q >> REC_DC_SHIFT));
+
+        /* 开头裁剪（REC_TRIM_HEAD_MS）：启动后该时段内的样本直接丢弃，
+         * 不进环形缓冲（不写入文件、不计峰值）——按下瞬间的按键机械噪声
+         * 集中在这一段。HAL_GetTick() 在 ISR 中调用安全（仅读 tick 计数） */
+        if ((HAL_GetTick() - s_rec_start_tick) < REC_TRIM_HEAD_MS)
+        {
+            continue;
+        }
 
         /* 峰值统计：判断音量偏低的真实幅度（INMP441 灵敏度 -26dBFS@94dB SPL），
-         * 统计的是增益前的原始幅度 */
+         * 统计的是去直流后、增益前的原始幅度 */
         uint32_t mag = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
         if (mag > s_peak)
         {
@@ -193,6 +214,56 @@ static FRESULT Rec_WriteRingToFile(void)
     return res;
 }
 
+/* ---- 首尾淡入淡出（主循环 Stop 流程内调用，复用 s_file_buf，分块处理） ----- */
+/* 对文件中 [file_off, file_off + total 样本) 区间做余弦坡幅度过渡：
+ * fade_in=true  系数 0→1（首个样本 = 0，末个 ≈ 原幅）
+ * fade_in=false 系数 1→0（首个样本 ≈ 原幅，末个 = 0）
+ * 读-乘-写回文件；失败仅打印不中止（非致命，只影响首尾听感） */
+#if REC_FADE_MS > 0U
+static void Rec_FadeRegion(uint32_t file_off, uint32_t total, bool fade_in)
+{
+    for (uint32_t done = 0U; done < total; )
+    {
+        uint32_t chunk = total - done;
+        if (chunk > REC_CHUNK)
+        {
+            chunk = REC_CHUNK;
+        }
+
+        UINT br = 0U;
+        if ((f_lseek(&s_rec_file, file_off) != FR_OK) ||
+            (f_read(&s_rec_file, s_file_buf, chunk * 2U, &br) != FR_OK) || (br != chunk * 2U))
+        {
+            printf("REC fade read fail\r\n");
+            return;
+        }
+
+        for (uint32_t i = 0U; i < chunk; i++)
+        {
+            /* 余弦坡系数：起止斜率为 0，无线性坡的斜率突变，听感更平滑。
+             * 主循环一次性处理，M4F 硬件浮点直接算。fade_in: 0→~1，fade_out: ~1→0 */
+            float c = 0.5f * (1.0f - cosf((float)3.14159265f * (float)(done + i) / (float)total));
+            if (!fade_in)
+            {
+                c = 1.0f - c;
+            }
+            s_file_buf[i] = (int16_t)((float)s_file_buf[i] * c);
+        }
+
+        UINT bw = 0U;
+        if ((f_lseek(&s_rec_file, file_off) != FR_OK) ||
+            (f_write(&s_rec_file, s_file_buf, chunk * 2U, &bw) != FR_OK) || (bw != chunk * 2U))
+        {
+            printf("REC fade write fail\r\n");
+            return;
+        }
+
+        file_off += chunk * 2U;
+        done += chunk;
+    }
+}
+#endif
+
 /* ---- 对外接口 ------------------------------------------------------------ */
 void AudioRec_Init(void)
 {
@@ -204,6 +275,7 @@ void AudioRec_Init(void)
     s_drop_count = 0U;
     s_i2s_err_count = 0U;
     s_peak = 0U;
+    s_dc_q = 0;
 }
 
 FRESULT AudioRec_Start(void)
@@ -250,7 +322,7 @@ FRESULT AudioRec_Start(void)
     }
 
     /* 3. 打开文件并写 WAV 头（data 长度先置 0，停止时回填） */
-    res = f_open(&s_rec_file, s_path, FA_CREATE_ALWAYS | FA_WRITE);
+    res = f_open(&s_rec_file, s_path, FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
     if (res != FR_OK)
     {
         printf("REC open fail: %d\r\n", (int)res);
@@ -295,12 +367,18 @@ FRESULT AudioRec_Start(void)
     s_drop_count = 0U;
     s_i2s_err_count = 0U;
     s_peak = 0U;
+    s_dc_q = 0; /* 直流估计清零，400ms 裁剪窗口内重新收敛（16ms 时间常数绰绰有余） */
     s_ring_wpos = 0U;
     s_ring_rpos = 0U;
     s_ring_count = 0U;
 
-    /* 4. 启动 I2S DMA 循环采集
-     * 注意：HAL_I2S_Receive_DMA 对 24B/32B 格式会把 Size 左移一位再写入 DMA
+    /* 4. 启动 I2S DMA 循环采集前，先清零 DMA 缓冲区：
+     * s_dma_buf 是静态数组，残留着上一次录音的数据（或上电随机值）。
+     * DMA 一启动就会立刻把这些旧样本搬进文件，产生短促的"咔/噗"声，
+     * 且落在 trim 窗口内无法被裁剪掉。清零后启动瞬态只表现为静音或底噪。 */
+    memset(s_dma_buf, 0, sizeof(s_dma_buf));
+
+    /* 注意：HAL_I2S_Receive_DMA 对 24B/32B 格式会把 Size 左移一位再写入 DMA
      * NDTR（HAL 假定 DMA 为半字传输，见 stm32f4xx_hal_i2s.c）。本工程 I2S2
      * DMA 配置为 32 位字对齐，NDTR 单位是字——若 Size 按字数传入，实际搬运
      * 量翻倍，越界 2560B 踩坏紧随其后的 s_file_buf / s_rec_file(FIL) / s_ring，
@@ -312,9 +390,17 @@ FRESULT AudioRec_Start(void)
         return FR_DISK_ERR;
     }
 
+    /* 裁剪窗口起点必须在 DMA 启动成功后立刻记录：
+     * 此前 s_rec_start_tick 放在 DMA 启动前赋值，但 f_open/prealloc 等文件
+     * 操作耗时几十~几百 ms，导致 DMA 启动后第一个中断到来时 tick 差值已
+     * 超过 trim 阈值（100ms），开头数据未被丢弃，爆破音进文件。
+     * 现在放到 DMA 启动后：第一个半传输中断在 5ms 后到来，差值一定 < trim。 */
+    s_rec_start_tick = HAL_GetTick();
+
     s_state = AUDIO_REC_RECORDING;
-    printf("REC start: %s (gain x%lu)\r\n", s_path,
-           (unsigned long)(1UL << REC_GAIN_SHIFT));
+    printf("REC start: %s (gain x%lu, trim %lums)\r\n", s_path,
+           (unsigned long)(1UL << REC_GAIN_SHIFT),
+           (unsigned long)REC_TRIM_HEAD_MS);
     return FR_OK;
 }
 
@@ -341,9 +427,34 @@ FRESULT AudioRec_Stop(void)
      * 簇；WAV 头中的 data 长度字段本就以 s_file_bytes 为准，二者一致 */
     if (res == FR_OK)
     {
+#if REC_TRIM_TAIL_MS > 0U
+        /* 末尾裁剪（REC_TRIM_TAIL_MS）：停止时刻的最后 N ms（停止按键的机械
+         * 声/DMA 停止瞬态）与开头裁剪同理从文件尾截掉——数据是顺序写入的，
+         * 直接回退文件长度即可，后续 f_truncate 一并完成截断与簇释放 */
+        uint32_t tail_bytes = (uint32_t)REC_TRIM_TAIL_MS * 32U; /* 16kHz/16bit 单声道 = 32B/ms */
+        s_file_bytes = (s_file_bytes > tail_bytes) ? (s_file_bytes - tail_bytes) : 0U;
+#endif
         f_lseek(&s_rec_file, 44U + s_file_bytes);
         f_truncate(&s_rec_file);
     }
+
+    /* 5. 首尾线性淡入淡出（REC_FADE_MS）：消除裁剪/截断点的硬截止咔哒声。
+     *    在截尾后进行，淡出作用于最终保留数据的结尾；淡入作用于文件头。 */
+#if REC_FADE_MS > 0U
+    if (res == FR_OK)
+    {
+        uint32_t fade_n = REC_FADE_SAMPLES;
+        if (fade_n * 2U > s_file_bytes)
+        {
+            fade_n = s_file_bytes / 2U; /* 数据比淡入淡出区还短：按实际长度 */
+        }
+        if (fade_n > 0U)
+        {
+            Rec_FadeRegion(44U, fade_n, true);                                /* 淡入：data 区起点 */
+            Rec_FadeRegion(44U + s_file_bytes - fade_n * 2U, fade_n, false);   /* 淡出：最终结尾 */
+        }
+    }
+#endif
 
     /* 回填 WAV 头中的长度字段（offset 4: RIFF 大小；offset 40: data 大小） */
     if (res == FR_OK)
@@ -375,6 +486,7 @@ FRESULT AudioRec_Stop(void)
         printf(", i2s err %lu", (unsigned long)s_i2s_err_count);
     }
     printf(", peak %lu/32767", (unsigned long)s_peak);
+    printf(", dc %ld", (long)(s_dc_q >> REC_DC_SHIFT)); /* 直流估计：旧固件此值≈4700，去除后应≈0 */
     printf("\r\n");
 
     /* 4. 录音结束，按配置决定是否恢复 USB MSC（重新枚举，U 盘重新出现在主机上）；

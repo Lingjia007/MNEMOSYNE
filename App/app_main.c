@@ -180,6 +180,28 @@ void App_Loop(void)
     App_RecToggle();
 #endif
 
+    /* 录音最长时长限制（REC_MAX_DURATION_MS=0 时不限制，条件恒假被编译器优化掉）：
+     * 定时从录音启动（DMA）时刻开始计，总时长 = 开头丢弃 + 有效语音 + 末尾截掉；
+     * 停止流程里 s_file_bytes 会扣除 REC_TRIM_TAIL_MS，最终 WAV 可听时长恰为
+     * REC_MAX_DURATION_MS。无符号减法安全：tick 只在上升沿赋值（当前值）。 */
+    static bool s_was_recording = false;
+    static uint32_t s_rec_start_tick = 0;
+
+    bool recording = (AudioRec_GetState() == AUDIO_REC_RECORDING);
+    if (recording && !s_was_recording)
+    {
+        s_rec_start_tick = HAL_GetTick(); /* 状态切入 RECORDING 的当前时刻 */
+    }
+    s_was_recording = recording;
+
+    if (recording && (REC_MAX_DURATION_MS > 0U) &&
+        (HAL_GetTick() - s_rec_start_tick >=
+         (REC_TRIM_HEAD_MS + REC_MAX_DURATION_MS + REC_TRIM_TAIL_MS)))
+    {
+        (void)AudioRec_Stop();
+        LED_OFF();
+    }
+
     /* 把采集环形缓冲中的数据搬到 SD 卡 */
     AudioRec_Process();
 
